@@ -4,6 +4,7 @@ import craftedcart.gcisomanager.type.Tree;
 import craftedcart.gcisomanager.util.LangManager;
 import craftedcart.gcisomanager.util.LogHelper;
 import javafx.application.Application;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
@@ -45,10 +46,14 @@ public class GCISOManager extends Application {
         //The root of the scene shown in the main window
         BorderPane root = new BorderPane();
         HBox toolbar = new HBox();
+        toolbar.setPadding(new Insets(4));
 
         root.setTop(toolbar);
 
-        Button button = new Button(LangManager.getItem("openISO"));
+        ImageView diskImageView = new ImageView(imageMap.get("disk"));
+        diskImageView.setFitWidth(20);
+        diskImageView.setFitHeight(20);
+        Button button = new Button(LangManager.getItem("openISO"), diskImageView);
         button.setOnAction(e -> chooseISO(primaryStage));
         toolbar.getChildren().add(button);
 
