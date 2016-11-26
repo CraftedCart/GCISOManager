@@ -1,0 +1,8 @@
+.tree-cell:search-match {
+    -fx-background: #81C784;
+}
+
+.tree-cell:search-match:selected {
+    -fx-background: #4CAF50;
+    -fx-text-fill: #FFFFFF;
+}

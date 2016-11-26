@@ -1,6 +1,7 @@
 package craftedcart.gcisomanager;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 /**
  * @author CraftedCart
@@ -62,4 +63,7 @@ public class FileEntry {
         return filename;
     }
 
+    public boolean filenameContainsIgnoreCase(String filename) {
+        return this.filename.toUpperCase().contains(filename.toUpperCase());
+    }
 }

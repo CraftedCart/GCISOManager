@@ -1,10 +1,13 @@
 package craftedcart.gcisomanager;
 
+import craftedcart.gcisomanager.type.SearchHighlightingTreeCell;
 import craftedcart.gcisomanager.type.Tree;
 import craftedcart.gcisomanager.util.LangManager;
 import craftedcart.gcisomanager.util.LogHelper;
 import craftedcart.gcisomanager.util.MathUtils;
 import javafx.application.Application;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableSet;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -12,13 +15,17 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author CraftedCart
@@ -29,6 +36,9 @@ public class GCISOManager extends Application {
     private ISOManager isoManager = new ISOManager();
 
     private TreeView<FileEntry> treeView;
+    private ObservableSet<TreeItem<FileEntry>> searchMatches = FXCollections.observableSet(new HashSet<TreeItem<FileEntry>>());
+    //Toolbar
+    private TextField searchTextField;
     //Status Bar
     private Label indexLabel;
     private Label offsetLabel;
@@ -46,11 +56,16 @@ public class GCISOManager extends Application {
 
         cacheImages();
 
+        //Spacers
+        Region horizSpacer = new Region();
+        HBox.setHgrow(horizSpacer, Priority.ALWAYS);
+
         //The root of the scene shown in the main window
         BorderPane root = new BorderPane();
 
         HBox toolbar = new HBox();
         toolbar.setPadding(new Insets(4));
+        toolbar.setSpacing(4);
         root.setTop(toolbar);
 
         HBox statusBar = new HBox();
@@ -66,17 +81,40 @@ public class GCISOManager extends Application {
         statusBar.getChildren().add(lengthLabel);
 
         ImageView diskImageView = new ImageView(imageMap.get("disk"));
-        diskImageView.setFitWidth(20);
-        diskImageView.setFitHeight(20);
+        diskImageView.setFitWidth(17);
+        diskImageView.setFitHeight(17);
         Button button = new Button(LangManager.getItem("openISO"), diskImageView);
         button.setOnAction(e -> chooseISO(primaryStage));
         toolbar.getChildren().add(button);
 
+        toolbar.getChildren().add(horizSpacer);
+
+        searchTextField = new TextField();
+        searchTextField.setPromptText(LangManager.getItem("search"));
+        searchTextField.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue.isEmpty()) {
+                searchMatches.clear();
+                return;
+            }
+
+            Set<TreeItem<FileEntry>> matches = new HashSet<>();
+            searchMatchingItems(treeView.getRoot(), matches, newValue);
+            searchMatches.clear();
+            searchMatches.addAll(matches);
+        });
+        toolbar.getChildren().add(searchTextField);
+
         treeView = new TreeView<>();
+        treeView.setCellFactory(tv -> new SearchHighlightingTreeCell(searchMatches));
         treeView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> onSelectionChanged(newValue));
         root.setCenter(treeView);
 
         Scene scene = new Scene(root, 500, 300);
+
+        //Load CSS styling
+        String css = getClass().getResource("/style.css").toExternalForm();
+        scene.getStylesheets().add(css);
+
         primaryStage.setScene(scene);
         primaryStage.setTitle(LangManager.getItem("gcISOManager"));
         primaryStage.show();
@@ -112,6 +150,18 @@ public class GCISOManager extends Application {
 
                 if (isoManager.openISO(file)) {
                     recursePopulateFileEntryTree(isoManager.getFileEntryTree().getRootNode(), null);
+
+                    //Search for whatever's in the text field
+                    if (searchTextField.getText().isEmpty()) {
+                        searchMatches.clear();
+                        return;
+                    }
+
+                    Set<TreeItem<FileEntry>> matches = new HashSet<>();
+                    searchMatchingItems(treeView.getRoot(), matches, searchTextField.getText());
+                    searchMatches.clear();
+                    searchMatches.addAll(matches);
+
                 } else {
                     Alert alert = new Alert(Alert.AlertType.ERROR, LangManager.getItem("notGameCubeISO"));
                     alert.showAndWait();
@@ -189,10 +239,31 @@ public class GCISOManager extends Application {
                 offsetLabel.setText(String.format(LangManager.getItem("offset"), entry.offset, MathUtils.prettifyByteCount(entry.offset, true), MathUtils.prettifyByteCount(entry.offset, false)));
                 lengthLabel.setText(String.format(LangManager.getItem("length"), entry.length, MathUtils.prettifyByteCount(entry.length, true), MathUtils.prettifyByteCount(entry.length, false)));
             }
+
         } else {
             indexLabel.setText("");
             offsetLabel.setText("");
             lengthLabel.setText("");
+        }
+    }
+
+    private void searchMatchingItems(TreeItem<FileEntry> searchNode, Set<TreeItem<FileEntry>> matches, String searchValue) {
+        if (searchNode == null) return; //If no root node, get outta here
+
+        if (searchNode.getValue().filenameContainsIgnoreCase(searchValue)) {
+            recurseAddParentsToSet(searchNode, matches);
+        }
+
+        for (TreeItem<FileEntry> child : searchNode.getChildren()) {
+            searchMatchingItems(child, matches, searchValue);
+        }
+    }
+
+    private void recurseAddParentsToSet(TreeItem<FileEntry> item, Set<TreeItem<FileEntry>> matches) {
+        matches.add(item);
+
+        if (item.getParent() != null) {
+            recurseAddParentsToSet(item.getParent(), matches);
         }
     }
 
