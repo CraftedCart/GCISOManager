@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gcisomanager.iml" filepath="$PROJECT_DIR$/.idea/modules/gcisomanager.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gcisomanager_main.iml" filepath="$PROJECT_DIR$/.idea/modules/gcisomanager_main.iml" group="gcisomanager" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gcisomanager_test.iml" filepath="$PROJECT_DIR$/.idea/modules/gcisomanager_test.iml" group="gcisomanager" />
+    </modules>
+  </component>
+</project>

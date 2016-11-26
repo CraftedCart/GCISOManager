@@ -1,0 +1,19 @@
+group 'craftedcart'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.5' //Log4J 2 API
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.5' //Log4J 2 Core
+
+    compile group: 'commons-io', name: 'commons-io', version: '2.5' //Apache Commons
+
+//    testCompile group: 'junit', name: 'junit', version: '4.11'
+}
