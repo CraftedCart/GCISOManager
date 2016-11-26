@@ -15,3 +15,14 @@ dependencies {
 
 //    testCompile group: 'junit', name: 'junit', version: '4.11'
 }
+
+jar {
+    manifest {
+        attributes(
+                'Class-Path': configurations.compile.collect { it.getName() }.join(' '),
+                'Main-Class': 'craftedcart.gcisomanager.GCISOManager'
+        )
+    }
+
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+}
