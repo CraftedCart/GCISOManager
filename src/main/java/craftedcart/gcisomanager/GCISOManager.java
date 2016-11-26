@@ -3,6 +3,7 @@ package craftedcart.gcisomanager;
 import craftedcart.gcisomanager.type.Tree;
 import craftedcart.gcisomanager.util.LangManager;
 import craftedcart.gcisomanager.util.LogHelper;
+import craftedcart.gcisomanager.util.MathUtils;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -11,7 +12,6 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -19,7 +19,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * @author CraftedCart
@@ -29,7 +28,11 @@ public class GCISOManager extends Application {
 
     private ISOManager isoManager = new ISOManager();
 
-    private TreeView<String> treeView;
+    private TreeView<FileEntry> treeView;
+    //Status Bar
+    private Label indexLabel;
+    private Label offsetLabel;
+    private Label lengthLabel;
 
     private Map<String, Image> imageMap;
 
@@ -45,10 +48,22 @@ public class GCISOManager extends Application {
 
         //The root of the scene shown in the main window
         BorderPane root = new BorderPane();
+
         HBox toolbar = new HBox();
         toolbar.setPadding(new Insets(4));
-
         root.setTop(toolbar);
+
+        HBox statusBar = new HBox();
+        statusBar.setPadding(new Insets(2, 4, 2, 4));
+        statusBar.setSpacing(8);
+        root.setBottom(statusBar);
+
+        indexLabel = new Label();
+        statusBar.getChildren().add(indexLabel);
+        offsetLabel = new Label();
+        statusBar.getChildren().add(offsetLabel);
+        lengthLabel = new Label();
+        statusBar.getChildren().add(lengthLabel);
 
         ImageView diskImageView = new ImageView(imageMap.get("disk"));
         diskImageView.setFitWidth(20);
@@ -58,7 +73,7 @@ public class GCISOManager extends Application {
         toolbar.getChildren().add(button);
 
         treeView = new TreeView<>();
-        treeView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        treeView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> onSelectionChanged(newValue));
         root.setCenter(treeView);
 
         Scene scene = new Scene(root, 500, 300);
@@ -112,21 +127,20 @@ public class GCISOManager extends Application {
         }
     }
 
-    private void recursePopulateFileEntryTree(Tree.Node<FileEntry> node, TreeItem<String> parent) {
-        TreeItem<String> item;
+    private void recursePopulateFileEntryTree(Tree.Node<FileEntry> node, TreeItem<FileEntry> parent) {
+        TreeItem<FileEntry> item;
         if (parent == null) { //If the node is the root
-            item = new TreeItem<>(node.getData().filename);
+            item = new TreeItem<>(node.getData());
             item.setExpanded(true);
             treeView.setRoot(item);
         } else {
-            item = new TreeItem<>(node.getData().filename);
+            item = new TreeItem<>(node.getData());
             parent.getChildren().add(item);
         }
 
         ImageView image = new ImageView(getImageForFilename(node.getData().filename, node.getData().isDir));
         image.setFitHeight(20);
         image.setFitWidth(20);
-
         item.setGraphic(image);
 
         for (Tree.Node<FileEntry> iNode : node.getChildren()) {
@@ -154,6 +168,31 @@ public class GCISOManager extends Application {
             return imageMap.get("folder-outline");
         } else {
             return imageMap.get("file");
+        }
+    }
+
+    private void onSelectionChanged(TreeItem<FileEntry> newValue) {
+        if (newValue != null) {
+            FileEntry entry = newValue.getValue();
+
+            indexLabel.setText(String.format(LangManager.getItem("index"), entry.index));
+
+            if (entry.isDir) {
+                if (entry.index == 0) { //If it's the root
+                    offsetLabel.setText("");
+                    lengthLabel.setText(String.format(LangManager.getItem("entryCount"), entry.length));
+                } else {
+                    offsetLabel.setText(String.format(LangManager.getItem("parentIndex"), entry.offset, newValue.getParent().getValue().filename));
+                    lengthLabel.setText(String.format(LangManager.getItem("nextIndex"), entry.length));
+                }
+            } else {
+                offsetLabel.setText(String.format(LangManager.getItem("offset"), entry.offset, MathUtils.prettifyByteCount(entry.offset, true), MathUtils.prettifyByteCount(entry.offset, false)));
+                lengthLabel.setText(String.format(LangManager.getItem("length"), entry.length, MathUtils.prettifyByteCount(entry.length, true), MathUtils.prettifyByteCount(entry.length, false)));
+            }
+        } else {
+            indexLabel.setText("");
+            offsetLabel.setText("");
+            lengthLabel.setText("");
         }
     }
 

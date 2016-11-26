@@ -26,8 +26,8 @@ public class FileEntry {
      * <b>Format of a raw file entry:</b><br>
      * Offset 0x00 | Size 1 | Flags: 0 = File / 1 = Directory<br>
      * Offset 0x01 | Size 3 | Filename Offset (Relative to string table)<br>
-     * Offset 0x04 | Size 4 | File: File Offset / Directory: Parent Offset<br>
-     * Offset 0x08 | Size 4 | File: File Length / Directory: Next Offset / Root: Number of entries<br>
+     * Offset 0x04 | Size 4 | File: File Offset / Directory: Parent Index<br>
+     * Offset 0x08 | Size 4 | File: File Length / Directory: Next Index / Root: Number of entries<br>
      *
      * @param rawEntry 12 byte array
      * @param index Index
@@ -59,12 +59,7 @@ public class FileEntry {
 
     @Override
     public String toString() {
-        return String.format("{\"isDir\"=%b,\"filenameOffset\"=%d,\"offset\"=%d,\"length\"=%d}",
-                isDir,
-                filenameOffset,
-                offset,
-                length //TODO: Data and filename?
-        );
+        return filename;
     }
 
 }
