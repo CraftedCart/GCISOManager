@@ -12,5 +12,6 @@ public class GCMUtils {
     public static final int FST_OFFSET_OFFSET = 0x0424;
     public static final int FST_ENTRY_LENGTH = 0x000c;
     public static final int FST_SIZE_LENGTH = 0x0004;
+    public static final int MAX_FILENAME_LENGTH = 256;
 
 }

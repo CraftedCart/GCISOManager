@@ -209,7 +209,7 @@ public class ISOManager {
 
         List<Character> nameCharList = new ArrayList<>();
 
-        for (int i = 0; i < 256; i++) {
+        for (int i = 0; i < GCMUtils.MAX_FILENAME_LENGTH; i++) {
             char nameChar = (char) file.read();
             if (nameChar == '\0') { //If nameChar is a null character (End of string)
                 break;
