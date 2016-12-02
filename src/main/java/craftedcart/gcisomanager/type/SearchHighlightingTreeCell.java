@@ -1,5 +1,10 @@
 package craftedcart.gcisomanager.type;
 
+import craftedcart.gcisomanager.FileEntry;
+import craftedcart.gcisomanager.ISOManager;
+import craftedcart.gcisomanager.task.ExtractMultipleTask;
+import craftedcart.gcisomanager.task.ExtractTask;
+import craftedcart.gcisomanager.util.LangManager;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import javafx.beans.WeakInvalidationListener;
@@ -7,25 +12,32 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
 import javafx.collections.ObservableSet;
 import javafx.css.PseudoClass;
-import javafx.scene.Node;
-import javafx.scene.control.TreeCell;
-import javafx.scene.control.TreeItem;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
+import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author CraftedCart
  *         Created on 26/11/2016 (DD/MM/YYYY)
  */
-public class SearchHighlightingTreeCell<T> extends TreeCell<T> {
+public class SearchHighlightingTreeCell extends TreeCell<FileEntry> {
+
+    private Stage stage;
+    private final ISOManager isoManager;
 
     // must keep reference to binding to prevent premature garbage collection:
     private BooleanBinding matchesSearch;
 
     private HBox hbox;
 
-    private WeakReference<TreeItem<T>> treeItemRef;
+    private WeakReference<TreeItem<FileEntry>> treeItemRef;
 
     private InvalidationListener treeItemGraphicListener = observable -> {
         updateDisplay(getItem(), isEmpty());
@@ -33,69 +45,71 @@ public class SearchHighlightingTreeCell<T> extends TreeCell<T> {
 
     private InvalidationListener treeItemListener = new InvalidationListener() {
         @Override public void invalidated(Observable observable) {
-            TreeItem<T> oldTreeItem = treeItemRef == null ? null : treeItemRef.get();
+            TreeItem<FileEntry> oldTreeItem = treeItemRef == null ? null : treeItemRef.get();
             if (oldTreeItem != null) {
                 oldTreeItem.graphicProperty().removeListener(weakTreeItemGraphicListener);
             }
 
-            TreeItem<T> newTreeItem = getTreeItem();
+            TreeItem<FileEntry> newTreeItem = getTreeItem();
             if (newTreeItem != null) {
                 newTreeItem.graphicProperty().addListener(weakTreeItemGraphicListener);
-                treeItemRef = new WeakReference<TreeItem<T>>(newTreeItem);
+                treeItemRef = new WeakReference<>(newTreeItem);
             }
         }
     };
 
-    private WeakInvalidationListener weakTreeItemGraphicListener =
-            new WeakInvalidationListener(treeItemGraphicListener);
+    private WeakInvalidationListener weakTreeItemGraphicListener = new WeakInvalidationListener(treeItemGraphicListener);
 
-    private WeakInvalidationListener weakTreeItemListener =
-            new WeakInvalidationListener(treeItemListener);
+    private WeakInvalidationListener weakTreeItemListener = new WeakInvalidationListener(treeItemListener);
 
-    void updateDisplay(T item, boolean empty) {
+    private void updateDisplay(FileEntry item, boolean empty) {
         if (item == null || empty) {
             hbox = null;
             setText(null);
             setGraphic(null);
         } else {
             // update the graphic if one is set in the TreeItem
-            TreeItem<T> treeItem = getTreeItem();
+            TreeItem<FileEntry> treeItem = getTreeItem();
             if (treeItem != null && treeItem.getGraphic() != null) {
-                if (item instanceof Node) {
-                    setText(null);
-
-                    // the item is a Node, and the graphic exists, so
-                    // we must insert both into an HBox and present that
-                    // to the user (see RT-15910)
-                    if (hbox == null) {
-                        hbox = new HBox(3);
-                    }
-                    hbox.getChildren().setAll(treeItem.getGraphic(), (Node)item);
-                    setGraphic(hbox);
-                } else {
-                    hbox = null;
-                    setText(item.toString());
-                    setGraphic(treeItem.getGraphic());
-                }
+                hbox = null;
+                setText(item.toString());
+                setGraphic(treeItem.getGraphic());
             } else {
                 hbox = null;
-                if (item instanceof Node) {
-                    setText(null);
-                    setGraphic((Node)item);
-                } else {
-                    setText(item.toString());
-                    setGraphic(null);
-                }
+                setText(item.toString());
+                setGraphic(null);
             }
         }
     }
 
-    @Override public void updateItem(T item, boolean empty) {
+    @Override
+    public void updateItem(FileEntry item, boolean empty) {
         super.updateItem(item, empty);
         updateDisplay(item, empty);
+
+        setContextMenu(null);
+
+        if (getTreeItem() != null) {
+            ContextMenu contextMenu = new ContextMenu();
+            MenuItem importMenuItem = new MenuItem(LangManager.getItem("import"));
+            MenuItem extractMenuItem = new MenuItem(LangManager.getItem("extract"));
+
+            if (getTreeItem().getValue().isDir) {
+                extractMenuItem.setOnAction((event) -> requestExtractDir());
+            } else {
+                extractMenuItem.setOnAction((event) -> requestExtractFile(item));
+            }
+
+            contextMenu.getItems().add(importMenuItem);
+            contextMenu.getItems().add(extractMenuItem);
+
+            setContextMenu(contextMenu);
+        }
     }
 
-    public SearchHighlightingTreeCell(ObservableSet<TreeItem<T>> searchMatches) {
+    public SearchHighlightingTreeCell(ObservableSet<TreeItem<FileEntry>> searchMatches, Stage stage, ISOManager isoManager) {
+        this.stage = stage;
+        this.isoManager = isoManager;
 
         treeItemProperty().addListener(weakTreeItemListener);
 
@@ -120,6 +134,57 @@ public class SearchHighlightingTreeCell<T> extends TreeCell<T> {
         // update the pseudoclass state if the binding value changes:
         matchesSearch.addListener((obs, didMatchSearch, nowMatchesSearch) ->
                 pseudoClassStateChanged(searchMatch, nowMatchesSearch));
+    }
+
+    private void requestExtractFile(FileEntry entry) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle(LangManager.getItem("extract"));
+        fileChooser.setInitialFileName(entry.filename);
+        File file = fileChooser.showSaveDialog(stage);
+
+        if (file != null) {
+            isoManager.getTaskManager().queueTask(new ExtractTask(entry, file, isoManager));
+        }
+    }
+
+    private void requestExtractDir() {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle(LangManager.getItem("extract"));
+
+        File file = directoryChooser.showDialog(stage);
+
+        if (file != null) {
+            ExtractMultipleTask task = new ExtractMultipleTask(getTreeItem().getValue());
+            isoManager.getTaskManager().queueTask(task);
+
+            List<ExtractTask> taskList = new ArrayList<>();
+
+            recurseQueueExtract(getTreeItem(), file, taskList);
+
+            task.setExtractTasks(taskList);
+        }
+    }
+
+    /**
+     * @param item The file to extract
+     * @param file The file to output to
+     * @param allTasks Populated with a list of ExtractTasks
+     */
+    private void recurseQueueExtract(TreeItem<FileEntry> item, File file, List<ExtractTask> allTasks) {
+        File currentFile = file;
+
+        if (item.getValue().isDir) {
+            currentFile = new File(file, item.getValue().index == 0 ? "root" : item.getValue().filename);
+            currentFile.mkdirs();
+        } else {
+            ExtractTask task = new ExtractTask(item.getValue(), new File(currentFile, item.getValue().filename), isoManager);
+            isoManager.getTaskManager().queueTask(task);
+            allTasks.add(task);
+        }
+
+        for (TreeItem<FileEntry> childItem : item.getChildren()) {
+            recurseQueueExtract(childItem, currentFile, allTasks);
+        }
     }
 
 }

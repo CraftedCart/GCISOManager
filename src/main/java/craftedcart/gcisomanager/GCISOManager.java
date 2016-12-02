@@ -1,11 +1,14 @@
 package craftedcart.gcisomanager;
 
+import craftedcart.gcisomanager.task.Task;
+import craftedcart.gcisomanager.task.TaskListCell;
 import craftedcart.gcisomanager.type.SearchHighlightingTreeCell;
 import craftedcart.gcisomanager.type.Tree;
 import craftedcart.gcisomanager.util.LangManager;
 import craftedcart.gcisomanager.util.LogHelper;
 import craftedcart.gcisomanager.util.MathUtils;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableSet;
 import javafx.geometry.Insets;
@@ -13,10 +16,8 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
+import javafx.scene.layout.*;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -32,6 +33,8 @@ import java.util.Set;
  *         Created on 23/10/2016 (DD/MM/YYYY)
  */
 public class GCISOManager extends Application {
+
+    private static boolean usingGUI = false;
 
     private ISOManager isoManager = new ISOManager();
 
@@ -52,7 +55,15 @@ public class GCISOManager extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        usingGUI = true;
+
         LogHelper.info(GCISOManager.class, "GC ISO Manager Launched");
+
+        primaryStage.setOnCloseRequest((event) -> {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> isoManager.getTaskManager().shutdownNow(), "ISOManagerShutdownThread"));
+            Platform.exit();
+            System.exit(0);
+        });
 
         cacheImages();
 
@@ -83,9 +94,17 @@ public class GCISOManager extends Application {
         ImageView diskImageView = new ImageView(imageMap.get("disk"));
         diskImageView.setFitWidth(17);
         diskImageView.setFitHeight(17);
-        Button button = new Button(LangManager.getItem("openISO"), diskImageView);
-        button.setOnAction(e -> chooseISO(primaryStage));
-        toolbar.getChildren().add(button);
+        Button openISOButton = new Button(LangManager.getItem("openISO"), diskImageView);
+        openISOButton.setOnAction(e -> chooseISO(primaryStage));
+        toolbar.getChildren().add(openISOButton);
+
+        ImageView extractImageView = new ImageView(imageMap.get("export"));
+        extractImageView.setFitWidth(17);
+        extractImageView.setFitHeight(17);
+        Button exportButton = new Button(LangManager.getItem("extract" +
+                ""), extractImageView);
+        exportButton.setOnAction(e -> chooseExportLoc(primaryStage));
+        toolbar.getChildren().add(exportButton);
 
         toolbar.getChildren().add(horizSpacer);
 
@@ -105,11 +124,30 @@ public class GCISOManager extends Application {
         toolbar.getChildren().add(searchTextField);
 
         treeView = new TreeView<>();
-        treeView.setCellFactory(tv -> new SearchHighlightingTreeCell(searchMatches));
+        treeView.setCellFactory(tv -> new SearchHighlightingTreeCell(searchMatches, primaryStage, isoManager));
+        treeView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         treeView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> onSelectionChanged(newValue));
         root.setCenter(treeView);
 
-        Scene scene = new Scene(root, 500, 300);
+        VBox tasksList = new VBox();
+        tasksList.setPadding(new Insets(4, 0, 0, 2));
+        tasksList.setSpacing(4);
+        tasksList.setMinWidth(300);
+        root.setRight(tasksList);
+
+        Label tasksLabel = new Label();
+        tasksLabel.setText(LangManager.getItem("tasks"));
+        tasksList.getChildren().add(tasksLabel);
+
+        ListView<Task> tasksListView = new ListView<>();
+        tasksListView.setCellFactory((lv) -> new TaskListCell());
+        VBox.setVgrow(tasksListView, Priority.ALWAYS);
+        tasksList.getChildren().add(tasksListView);
+
+        isoManager.getTaskManager().addOnTaskSubmitAction((task) -> Platform.runLater(() -> tasksListView.getItems().add(task)));
+        isoManager.getTaskManager().addOnTaskFinishAction((task) -> Platform.runLater(() -> tasksListView.getItems().remove(task)));
+
+        Scene scene = new Scene(root, 800, 600);
 
         //Load CSS styling
         String css = getClass().getResource("/style.css").toExternalForm();
@@ -126,6 +164,7 @@ public class GCISOManager extends Application {
         imageMap.put("code-braces", new Image(getClass().getResourceAsStream("/image/code-braces.png")));
         imageMap.put("cube", new Image(getClass().getResourceAsStream("/image/cube.png")));
         imageMap.put("disk", new Image(getClass().getResourceAsStream("/image/disk.png")));
+        imageMap.put("export", new Image(getClass().getResourceAsStream("/image/export.png")));
         imageMap.put("file-document", new Image(getClass().getResourceAsStream("/image/file-document.png")));
         imageMap.put("file-image", new Image(getClass().getResourceAsStream("/image/file-image.png")));
         imageMap.put("file", new Image(getClass().getResourceAsStream("/image/file.png")));
@@ -174,6 +213,26 @@ public class GCISOManager extends Application {
                 Alert alert = new Alert(Alert.AlertType.ERROR, LangManager.getItem("fileReadError"));
                 alert.showAndWait();
             }
+        }
+    }
+
+    private void chooseExportLoc(Stage stage) {
+//        FileChooser fileChooser = new FileChooser();
+//        fileChooser.setTitle(LangManager.getItem("openISO"));
+//
+//        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(LangManager.getItem("isoFileFilter"), "*.iso"));
+//        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(LangManager.getItem("allFileFilter"), "*.*"));
+//
+//        File file = fileChooser.show(stage);
+
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle(LangManager.getItem("extract"));
+
+        File file = directoryChooser.showDialog(stage);
+
+        if (file != null) {
+            //TODO
+//            for (FileEntry entry : treeView.)
         }
     }
 
@@ -265,6 +324,10 @@ public class GCISOManager extends Application {
         if (item.getParent() != null) {
             recurseAddParentsToSet(item.getParent(), matches);
         }
+    }
+
+    public static boolean isUsingGUI() {
+        return usingGUI;
     }
 
 }

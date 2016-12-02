@@ -1,10 +1,14 @@
 package craftedcart.gcisomanager;
 
+import craftedcart.gcisomanager.task.TaskManager;
 import craftedcart.gcisomanager.type.CallbackAction1;
 import craftedcart.gcisomanager.type.EnumErrorFlag;
 import craftedcart.gcisomanager.type.Tree;
 import craftedcart.gcisomanager.util.GCMUtils;
 import craftedcart.gcisomanager.util.LogHelper;
+import javafx.application.Platform;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleLongProperty;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -18,12 +22,7 @@ import java.util.Map;
  */
 public class ISOManager {
 
-    /**
-     * -1 when no activity is in progress
-     */
-    private float progress = -1;
-    private float progressMax = 100;
-
+    private File gcmFileLoc;
     private RandomAccessFile gcmFile;
 
     private int dirDepth = 0;
@@ -32,7 +31,11 @@ public class ISOManager {
     private Tree<FileEntry> fileEntryTree;
     private Map<Integer, Tree.Node<FileEntry>> fileEntryDepthMap;
 
+    private TaskManager taskManager = new TaskManager();
+
     public boolean openISO(File file) throws IOException {
+        RandomAccessFile oldGCMFile = gcmFile;
+
         class ErrorFlagContainer {
             private EnumErrorFlag errorFlag = EnumErrorFlag.NO_ERROR;
         }
@@ -81,6 +84,12 @@ public class ISOManager {
         if (errorFlagContainer.errorFlag == EnumErrorFlag.IO_EXCEPTION) {
             throw new IOException();
         }
+
+        if (oldGCMFile != null) { //If the previously open file exists, close it
+            oldGCMFile.close();
+        }
+
+        gcmFileLoc = file;
 
         return true;
     }
@@ -247,8 +256,62 @@ public class ISOManager {
         return (int) e.length;
     }
 
+    /**
+     * Extract files from the disk image to the destinationFile (In the local filesystem)
+     *
+     * @param entry The source file in the disk image
+     * @param destinationFile The location to extract to
+     */
+    public void extractFile(FileEntry entry, File destinationFile, SimpleDoubleProperty percent, SimpleLongProperty bytesDone) throws IOException {
+        if (entry.isDir) throw new IllegalArgumentException("Entry is a directory");
+
+        if (destinationFile.exists()) {
+            if (!destinationFile.delete()) throw new IOException("Failed to delete destinationFile");
+        }
+
+        DataInputStream gcmDIS = new DataInputStream(new BufferedInputStream(new FileInputStream(gcmFileLoc)));
+        DataOutputStream outDOS = new DataOutputStream(new FileOutputStream(destinationFile));
+
+        gcmDIS.skip(entry.offset);
+
+        for (long i = 0; i < entry.length; i += 32768) {
+            byte[] contents = new byte[32768];
+            int bytesRead = gcmDIS.read(contents);
+
+            outDOS.write(contents, 0, bytesRead);
+
+            if (GCISOManager.isUsingGUI()) {
+                final long iClone = i;
+
+                Platform.runLater(() -> {
+                    percent.set(iClone / (double) entry.length);
+                    bytesDone.setValue(iClone);
+                });
+            } else {
+                percent.set(i / (double) entry.length);
+                bytesDone.setValue(i);
+            }
+
+        }
+
+        outDOS.close();
+
+        if (GCISOManager.isUsingGUI()) {
+            Platform.runLater(() -> {
+                percent.set(1);
+                bytesDone.setValue(entry.length);
+            });
+        } else {
+            percent.set(1);
+            bytesDone.setValue(entry.length);
+        }
+    }
+
     public Tree<FileEntry> getFileEntryTree() {
         return fileEntryTree;
     }
 
+    public TaskManager getTaskManager() {
+        return taskManager;
+    }
 }
